@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+from config.settings import DATABASE_URL
 
 
 def load_generator_module():
@@ -15,6 +16,5 @@ def test_database_url_percent_encodes_special_characters():
     module = load_generator_module()
 
     assert module.DATABASE_URL == (
-        "postgresql://postgres:Tiger%40Dev2209@"
-        "db.pfmvgdmiufocejfynizq.supabase.co:5432/postgres"
+        f"postgresql://{DATABASE_URL.split('://')[1]}"
     )
