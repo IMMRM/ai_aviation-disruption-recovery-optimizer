@@ -1,0 +1,9 @@
+pip
+pytest
+python-dotenv
+ruff
+pandas
+faker
+sqlalchemy
+psycopg2-binary
+-e .
