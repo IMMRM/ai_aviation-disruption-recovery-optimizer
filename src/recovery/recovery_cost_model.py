@@ -27,6 +27,7 @@ from models.flight import Flight
 from models.customer import Customer
 from models.flight_customer import FlightCustomer
 from models.airport_proximity import AirportProximity
+from src.recovery.schedule_feasiblity import ScheduleFeasibilityChecker
 
 # ============================================================
 # CONFIGURABLE COST PARAMETERS
@@ -108,7 +109,10 @@ def get_disrupted_flight_details(
             flight.passenger_count,
 
         "capacity":
-            aircraft.capacity
+            aircraft.capacity,
+        
+        "flight_orm":
+            flight
     }
 
 # ============================================================
@@ -137,6 +141,8 @@ def get_feasible_recovery_candidates(
             "assigned_aircraft"
         ]
     )
+    
+    flight=disrupted_flight["flight_orm"]
 
     results = (
 
@@ -187,7 +193,21 @@ def get_feasible_recovery_candidates(
 
     for aircraft, proximity_score in results:
 
-        candidates.append({
+        feasibility = (
+            ScheduleFeasibilityChecker.check(
+                flight=flight,
+                aircraft=aircraft,
+                proximity_score=proximity_score
+            )
+        )
+
+        if not feasibility.feasible:
+            print(
+            f"{aircraft.aircraft_id} rejected"
+            f" | reason={feasibility.reason}"
+            )
+
+            candidates.append({
 
             "aircraft_id":
                 aircraft.aircraft_id,
@@ -202,9 +222,14 @@ def get_feasible_recovery_candidates(
                 aircraft.current_airport,
 
             "proximity_score":
-                proximity_score
-        })
+                proximity_score,
 
+            "reposition_minutes":
+                feasibility.reposition_minutes,
+
+            "available_from":
+                aircraft.available_from
+        })
     return candidates
 
 # ============================================================

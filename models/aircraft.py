@@ -53,3 +53,5 @@ class Aircraft(Base):
         TIMESTAMP,
         server_default=func.now()
     )
+    
+    available_from = Column(TIMESTAMP)
