@@ -156,6 +156,31 @@ class AssignmentMatrixBuilder:
                     option
                 )
 
+        flight_counts = defaultdict(int)
+
+        for row in assignment_matrix:
+
+            flight_counts[
+                row.flight_id
+            ] += 1
+
+        print("\n")
+        print("=" * 70)
+        print("CANDIDATES PER DISRUPTED FLIGHT")
+        print("=" * 70)
+
+        for flight_id, count in sorted(
+            flight_counts.items()
+        ):
+
+            print(
+                f"{flight_id} -> {count}"
+            )
+
+        print("=" * 70)
+
+
+
         return assignment_matrix
 
     # ========================================================
@@ -190,6 +215,7 @@ def build_assignment_matrix():
         builder = (
             AssignmentMatrixBuilder(db)
         )
+        
 
         return builder.build()
 

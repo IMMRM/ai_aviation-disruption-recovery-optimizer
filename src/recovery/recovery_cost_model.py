@@ -37,7 +37,6 @@ REPOSITION_COST_MULTIPLIER = 1000
 
 DELAY_COST_PER_MINUTE = 100
 
-DELAY_PER_PROXIMITY_UNIT = 15
 
 # ============================================================
 # GET DB SESSION
@@ -202,12 +201,15 @@ def get_feasible_recovery_candidates(
         )
 
         if not feasibility.feasible:
+
             print(
-            f"{aircraft.aircraft_id} rejected"
-            f" | reason={feasibility.reason}"
+                f"{aircraft.aircraft_id} rejected"
+                f" | reason={feasibility.reason}"
             )
 
-            candidates.append({
+            continue
+
+        candidates.append({
 
             "aircraft_id":
                 aircraft.aircraft_id,
@@ -228,8 +230,14 @@ def get_feasible_recovery_candidates(
                 feasibility.reposition_minutes,
 
             "available_from":
-                aircraft.available_from
+                aircraft.available_from,
+
+            "required_ready_time":
+                feasibility.required_ready_time
         })
+
+    return candidates
+    
     return candidates
 
 # ============================================================
@@ -250,14 +258,31 @@ def calculate_reposition_cost(
 # ============================================================
 
 def estimate_recovery_delay(
-    proximity_score: int
+    candidate: dict,
+    disrupted_flight: dict
 ):
 
-    return (
-        proximity_score
-        * DELAY_PER_PROXIMITY_UNIT
+    required_ready_time = (
+        candidate["required_ready_time"]
     )
 
+    scheduled_departure = (
+        disrupted_flight["dep_time"]
+    )
+
+    if required_ready_time <= scheduled_departure:
+
+        return 0
+
+    delay_minutes = (
+
+        required_ready_time
+        -
+        scheduled_departure
+
+    ).total_seconds() / 60
+
+    return int(delay_minutes)
 # ============================================================
 # STEP 5 — CALCULATE DELAY PENALTY
 # ============================================================
@@ -331,9 +356,17 @@ def calculate_total_recovery_cost(
         )
     )
 
+    disrupted_flight = (
+    get_disrupted_flight_details(
+        db,
+        flight_id
+    )
+)
+
     estimated_delay = (
         estimate_recovery_delay(
-            proximity_score
+            candidate,
+            disrupted_flight
         )
     )
 
