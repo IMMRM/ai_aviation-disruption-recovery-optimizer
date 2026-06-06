@@ -7,4 +7,6 @@ faker
 sqlalchemy
 psycopg2-binary
 ortools
+streamlit
+plotly
 -e .
