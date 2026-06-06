@@ -10,5 +10,6 @@ ortools
 streamlit
 plotly
 groq
+gradio
 -e .
-python>=3.10
+
