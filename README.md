@@ -1,61 +1,413 @@
-# aviation_recovery_ai
+# ✈️ Aviation Recovery AI
 
-<a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
-    <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
-</a>
+An AI-driven aviation disruption recovery platform that simulates real-world airline operations and intelligently recommends optimal aircraft recovery plans during operational disruptions.
 
-an AI-driven aviation disruption recovery platform that simulates real-world flight operations and intelligently optimizes aircraft rescheduling, crew recovery, and VIP customer impact during operational disruptions.
+The system combines:
 
-## Project Organization
+- Operations Research (Google OR-Tools)
+- Optimization Modeling
+- Recovery Cost Analysis
+- Aviation Scheduling Constraints
+- Generative AI Copilot (Groq LLM)
+- Interactive Streamlit Control Tower Dashboard
 
+---
+
+# Problem Statement
+
+Airlines and private aviation operators frequently face disruptions caused by:
+
+- Aircraft maintenance issues
+- Technical failures
+- Operational delays
+- Aircraft unavailability
+- Network scheduling conflicts
+
+When disruptions occur, operations teams must quickly answer:
+
+- Which aircraft can replace the failed aircraft?
+- Which option minimizes operational impact?
+- What is the recovery cost?
+- Which flights should be prioritized?
+- Why was a specific recovery decision made?
+
+Traditionally, this process is highly manual and time-sensitive.
+
+This project demonstrates how Optimization + GenAI can assist operations teams in making faster and more explainable recovery decisions.
+
+---
+
+# Solution Overview
+
+The platform simulates an aviation network and automatically:
+
+1. Detects disrupted flights
+2. Generates feasible recovery aircraft candidates
+3. Evaluates schedule feasibility
+4. Calculates recovery costs
+5. Optimizes aircraft assignments using OR-Tools
+6. Produces a network-wide recovery plan
+7. Explains recovery decisions using an AI Copilot
+
+---
+
+# System Architecture
+
+```text
+                     ┌─────────────────┐
+                     │ Operational Data│
+                     └────────┬────────┘
+                              │
+                              ▼
+                   ┌────────────────────┐
+                   │ Disruption Events  │
+                   └────────┬───────────┘
+                            │
+                            ▼
+                ┌─────────────────────────┐
+                │ Candidate Generation    │
+                └────────┬────────────────┘
+                         │
+                         ▼
+              ┌────────────────────────────┐
+              │ Schedule Feasibility Check │
+              └────────┬───────────────────┘
+                       │
+                       ▼
+              ┌────────────────────────────┐
+              │ Recovery Cost Modeling     │
+              └────────┬───────────────────┘
+                       │
+                       ▼
+              ┌────────────────────────────┐
+              │ OR-Tools Optimizer         │
+              └────────┬───────────────────┘
+                       │
+                       ▼
+              ┌────────────────────────────┐
+              │ Recovery Plan              │
+              └────────┬───────────────────┘
+                       │
+                       ▼
+              ┌────────────────────────────┐
+              │ GenAI Recovery Copilot     │
+              └────────────────────────────┘
 ```
-├── LICENSE            <- Open-source license if one is chosen
-├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
-├── README.md          <- The top-level README for developers using this project.
-├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
-│
-├── docs               <- A default mkdocs project; see www.mkdocs.org for details
-│
-├── models             <- Trained and serialized models, model predictions, or model summaries
-│
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
-│
-├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         src and configuration for tools like black
-│
-├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-│
-├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-│   └── figures        <- Generated graphics and figures to be used in reporting
-│
-├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-│                         generated with `pip freeze > requirements.txt`
-│
-├── setup.cfg          <- Configuration file for flake8
-│
-└── src   <- Source code for use in this project.
-    │
-    ├── __init__.py             <- Makes src a Python module
-    │
-    ├── config.py               <- Store useful variables and configuration
-    │
-    ├── dataset.py              <- Scripts to download or generate data
-    │
-    ├── features.py             <- Code to create features for modeling
-    │
-    ├── modeling                
-    │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
-    │
-    └── plots.py                <- Code to create visualizations
+
+---
+
+# Key Features
+
+## Flight Network Simulation
+
+Synthetic aviation environment containing:
+
+- Airports
+- Aircraft
+- Flights
+- Customers
+- Disruptions
+- Recovery resources
+
+---
+
+## Disruption Recovery
+
+Supports disruptions such as:
+
+- Technical Failure
+- Maintenance Events
+- Aircraft Unavailability
+
+---
+
+## Feasibility Validation
+
+Ensures recovery aircraft satisfy:
+
+- Capacity requirements
+- Availability constraints
+- Repositioning constraints
+- Turnaround requirements
+- Conflict-free schedules
+
+---
+
+## Recovery Cost Modeling
+
+Recovery cost considers:
+
+### Reposition Cost
+
+Cost of moving aircraft to disruption location.
+
+### Delay Penalty
+
+Operational delay impact.
+
+### SLA Impact
+
+Customer-level contractual penalties.
+
+### Total Recovery Cost
+
+```text
+Total Cost =
+Reposition Cost
++ Delay Penalty
++ SLA Impact
 ```
 
---------
+---
 
+## OR-Tools Optimization
+
+Uses Google OR-Tools CP-SAT solver.
+
+Objective:
+
+```text
+Minimize Total Network Recovery Cost
+```
+
+Subject to:
+
+- One aircraft assigned per disrupted flight
+- Aircraft assignment constraints
+- Schedule feasibility constraints
+
+---
+
+## GenAI Recovery Copilot
+
+Powered by:
+
+- Groq
+- Llama 3.3 70B
+
+Supports natural language questions:
+
+Examples:
+
+```text
+Why was AC_022 selected?
+
+Which recovery option was most expensive?
+
+How many flights were recovered?
+
+Summarize the recovery plan.
+
+Which aircraft failed?
+```
+
+---
+
+# Technology Stack
+
+## Backend
+
+- Python 3.12
+- SQLAlchemy ORM
+- PostgreSQL
+
+## Optimization
+
+- Google OR-Tools
+- CP-SAT Solver
+
+## AI
+
+- Groq API
+- Llama 3.3 70B
+
+## Dashboard
+
+- Streamlit
+- Plotly
+
+---
+
+# Project Structure
+
+```text
+aviation_recovery_ai/
+
+├── config/
+│   └── settings.py
+
+├── models/
+│   ├── aircraft.py
+│   ├── flight.py
+│   ├── disruption.py
+│   └── ...
+
+├── src/
+
+│   ├── database/
+│   │   └── session.py
+
+│   ├── recovery/
+│   │   ├── recovery_cost_model.py
+│   │   ├── schedule_feasiblity.py
+│   │   └── aircraft_conflict_detector.py
+
+│   ├── optimization/
+│   │   ├── build_assignment_matrix.py
+│   │   └── optimize_recovery.py
+
+│   ├── genai/
+│   │   └── services/
+│   │       ├── recovery_chat_service.py
+│   │       └── recovery_context_builder.py
+
+├── streamlit/
+│   └── app.py
+
+├── generate_operational_data.py
+
+└── README.md
+```
+
+---
+
+# Dashboard
+
+## Flight Schedule
+
+Visualizes:
+
+- Flight schedule
+- Aircraft rotations
+- Network timeline
+
+Features:
+
+- Interactive tables
+- Plotly Gantt chart
+
+---
+
+## Disruption Control Center
+
+Displays:
+
+- Active disruptions
+- Severity levels
+- Aircraft impact
+
+---
+
+## Recovery Optimizer
+
+Generates:
+
+- Optimal recovery assignments
+- Recovery cost metrics
+- Downloadable recovery plans
+
+---
+
+## Recovery Copilot
+
+Interactive AI assistant for operations teams.
+
+Provides:
+
+- Recovery explanations
+- Plan summaries
+- Operational insights
+
+---
+
+# Example Recovery Plan
+
+| Flight | Failed Aircraft | Recovery Aircraft | Recovery Cost |
+|----------|----------|----------|----------|
+| FL_0033 | AC_005 | AC_022 | $31,000 |
+| FL_0019 | AC_003 | AC_021 | $57,000 |
+| FL_0041 | AC_007 | AC_018 | $29,000 |
+
+---
+
+# Example Copilot Questions
+
+```text
+Why was AC_022 selected?
+
+Which disruption had the highest cost?
+
+How many reserve aircraft were used?
+
+Summarize the recovery plan.
+
+Which flights were impacted by maintenance events?
+```
+
+---
+
+# Future Enhancements
+
+## Crew Recovery Optimization
+
+Recover crew schedules alongside aircraft.
+
+---
+
+## Passenger Re-accommodation
+
+Recommend passenger recovery actions.
+
+---
+
+## Multi-Day Network Recovery
+
+Optimize across multiple operational days.
+
+---
+
+## Real-Time Streaming Events
+
+Integrate live operational events.
+
+---
+
+## What-If Analysis
+
+Examples:
+
+```text
+What if AC_022 becomes unavailable?
+
+What if delay penalties double?
+```
+
+---
+
+# Learning Outcomes
+
+This project demonstrates:
+
+- Operations Research
+- Constraint Programming
+- Optimization Modeling
+- Aviation Scheduling
+- SQLAlchemy ORM
+- PostgreSQL
+- Streamlit Development
+- GenAI Integration
+- Production-Oriented Software Design
+
+---
+
+# Author
+
+Raj Ron
+
+Software Engineer | AI Engineering | Optimization | Agentic AI
+
+---
+
+# License
+
+MIT License
