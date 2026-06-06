@@ -168,7 +168,7 @@ def get_feasible_recovery_candidates(
         )
 
         .filter(
-            Aircraft.maintenance_due == False
+            Aircraft.maintenance_due.is_(False)
         )
 
         .filter(
@@ -236,8 +236,6 @@ def get_feasible_recovery_candidates(
                 feasibility.required_ready_time
         })
 
-    return candidates
-    
     return candidates
 
 # ============================================================

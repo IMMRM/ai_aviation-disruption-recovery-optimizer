@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Optional
 
 # ============================================================
 # CONFIG
@@ -24,9 +25,9 @@ class FeasibilityResult:
 
     turnaround_minutes: int
 
-    required_ready_time: datetime | None
+    required_ready_time: Optional[datetime]
 
-    available_from: datetime | None
+    available_from: Optional[datetime]
 
 # ============================================================
 # FEASIBILITY CHECKER

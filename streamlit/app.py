@@ -7,9 +7,17 @@ from config.settings import DATABASE_URL
 from sqlalchemy import create_engine
 
 from src.optimization.optimize_recovery import (
-    RecoveryOptimizer,
-    optimize_recovery
+    RecoveryOptimizer
 )
+
+from src.genai.services.recovery_chat_service import (
+    RecoveryChatService
+)
+
+from src.genai.services.recovery_context_builder import (
+    RecoveryContextBuilder
+)
+
 
 # ============================================================
 # DATABASE CONFIG
@@ -28,6 +36,36 @@ st.set_page_config(
     page_icon="✈️",
     layout="wide"
 )
+# ============================================================
+# CHAT STATE
+# ============================================================
+
+if "messages" not in st.session_state:
+
+    st.session_state.messages = []
+if "show_copilot" not in st.session_state:
+
+    st.session_state.show_copilot = False
+
+if "optimization_completed" not in st.session_state:
+
+    st.session_state.optimization_completed = False
+
+if "results_df" not in st.session_state:
+
+    st.session_state.results_df = None
+
+if "recovery_context" not in st.session_state:
+
+    st.session_state.recovery_context = None
+
+if "total_cost" not in st.session_state:
+
+    st.session_state.total_cost = 0
+
+if "flights_recovered" not in st.session_state:
+
+    st.session_state.flights_recovered = 0
 
 st.title(
     "✈️ Aviation Recovery Control Tower"
@@ -44,7 +82,7 @@ st.markdown(
 # DATA LOADERS
 # ============================================================
 
-@st.cache_data
+@st.cache_data(ttl=60)
 def load_flights():
 
     query = """
@@ -66,7 +104,7 @@ def load_flights():
     )
 
 
-@st.cache_data
+@st.cache_data(ttl=60)
 def load_disruptions():
 
     query = """
@@ -289,122 +327,260 @@ with tab3:
         type="primary"
     ):
 
-        progress_bar = st.progress(0)
+        try:
 
-        status_text = st.empty()
+            progress_bar = st.progress(0)
 
-        # ----------------------------------------------------
-        # STEP 1
-        # ----------------------------------------------------
+            status_text = st.empty()
 
-        status_text.text(
-            "Building assignment matrix..."
-        )
+            # ----------------------------------------------------
+            # STEP 1
+            # ----------------------------------------------------
 
-        assignment_matrix = (
-            build_assignment_matrix()
-        )
-
-        progress_bar.progress(25)
-
-        # ----------------------------------------------------
-        # STEP 2
-        # ----------------------------------------------------
-
-        status_text.text(
-            "Initializing optimizer..."
-        )
-
-        optimizer = RecoveryOptimizer(
-            assignment_matrix
-        )
-
-        progress_bar.progress(50)
-
-        # ----------------------------------------------------
-        # STEP 3
-        # ----------------------------------------------------
-
-        status_text.text(
-            "Running OR-Tools solver..."
-        )
-
-        assignments = (
-            optimizer.solve()
-        )
-
-        progress_bar.progress(90)
-
-        # ----------------------------------------------------
-        # STEP 4
-        # ----------------------------------------------------
-
-        status_text.text(
-            "Preparing recovery plan..."
-        )
-
-        progress_bar.progress(100)
-
-        status_text.success(
-            "Optimization Complete"
-        )
-
-        # ====================================================
-        # DISRUPTION LOOKUP
-        # ====================================================
-
-        disruptions_df = (
-            load_disruptions()
-        )
-
-        disrupted_aircraft_lookup = {
-
-            row["flight_id"]:
-            row["aircraft_id"]
-
-            for _, row
-            in disruptions_df.iterrows()
-        }
-
-        # ====================================================
-        # BUILD RESULT TABLE
-        # ====================================================
-
-        results = []
-
-        total_cost = 0
-
-        for assignment in assignments:
-
-            total_cost += (
-                assignment.recovery_cost
+            status_text.text(
+                "Building assignment matrix..."
             )
 
-            results.append({
+            assignment_matrix = (
+                build_assignment_matrix()
+            )
 
-                "Flight":
+            # Validate non-empty assignment matrix
+            if not assignment_matrix:
+
+                st.info(
+                    "✅ No active disruptions - "
+                    "network operating normally"
+                )
+
+                st.stop()
+
+            progress_bar.progress(25)
+
+            # ----------------------------------------------------
+            # STEP 2
+            # ----------------------------------------------------
+
+            status_text.text(
+                "Initializing optimizer..."
+            )
+
+            optimizer = RecoveryOptimizer(
+                assignment_matrix
+            )
+
+            progress_bar.progress(50)
+
+            # ----------------------------------------------------
+            # STEP 3
+            # ----------------------------------------------------
+
+            status_text.text(
+                "Running OR-Tools solver..."
+            )
+
+            assignments = (
+                optimizer.solve()
+            )
+            st.session_state.messages = []
+
+            progress_bar.progress(90)
+
+            # ----------------------------------------------------
+            # STEP 4
+            # ----------------------------------------------------
+
+            status_text.text(
+                "Preparing recovery plan..."
+            )
+
+            progress_bar.progress(100)
+
+            status_text.success(
+                "Optimization Complete"
+            )
+
+            # ====================================================
+            # DISRUPTION LOOKUP
+            # ====================================================
+
+            disruptions_df = (
+                load_disruptions()
+            )
+
+            flights_df = (
+                load_flights()
+            )
+
+            disrupted_aircraft_lookup = {
+
+                row["flight_id"]:
+                row["aircraft_id"]
+
+                for _, row
+                in disruptions_df.iterrows()
+            }
+
+            # ====================================================
+            # BUILD RESULT TABLE WITH COST DETAILS
+            # ====================================================
+
+            # Create lookup for proximity scores from assignment matrix
+            proximity_lookup = {
+                (opt.flight_id, opt.aircraft_id): {
+                    'proximity_score': opt.proximity_score,
+                    'estimated_delay': opt.estimated_delay,
+                    'sla_impact': opt.sla_impact
+                }
+                for opt in assignment_matrix
+            }
+
+            results = []
+
+            total_cost = 0
+
+            for assignment in assignments:
+
+                total_cost += (
+                    assignment.recovery_cost
+                )
+
+                # Get detailed cost info if available
+                lookup_key = (
                     assignment.flight_id,
+                    assignment.aircraft_id
+                )
+                details = proximity_lookup.get(
+                    lookup_key,
+                    {
+                        'proximity_score': 'N/A',
+                        'estimated_delay': 'N/A',
+                        'sla_impact': 'N/A'
+                    }
+                )
 
-                "Failed Aircraft":
-                    disrupted_aircraft_lookup.get(
+                results.append({
+
+                    "Flight":
                         assignment.flight_id,
-                        "Unknown"
-                    ),
 
-                "Recovery Aircraft":
-                    assignment.aircraft_id,
+                    "Failed Aircraft":
+                        disrupted_aircraft_lookup.get(
+                            assignment.flight_id,
+                            "Unknown"
+                        ),
 
-                "Recovery Cost":
-                    f"${assignment.recovery_cost:,.0f}"
-            })
+                    "Recovery Aircraft":
+                        assignment.aircraft_id,
 
-        results_df = pd.DataFrame(
-            results
+                    "Recovery Cost":
+                        f"${assignment.recovery_cost:,.0f}",
+
+                    "Proximity Score":
+                        details['proximity_score'],
+
+                    "Estimated Delay":
+                        details['estimated_delay'],
+
+                    "Reposition Minutes":
+                        details['estimated_delay'],
+
+                    "SLA Impact":
+                        details['sla_impact']
+                })
+
+            results_df = pd.DataFrame(
+                results
+            )
+            st.session_state.results_df = results_df
+
+            st.session_state.optimization_completed = True
+            
+            st.session_state.total_cost = total_cost
+            
+            st.session_state.flights_recovered = len(
+                assignments
+            )
+            # ============================================================
+            # BUILD RECOVERY CONTEXT WITH ENRICHED DATA
+            # ============================================================
+
+            # Create enriched dataframe by merging with flight and disruption data
+            enriched_df = results_df.copy()
+
+            # Merge with disruptions data (Disruption Type, Severity)
+            disruptions_subset = disruptions_df[[
+                'flight_id',
+                'disruption_type',
+                'severity'
+            ]].copy()
+            disruptions_subset.columns = [
+                'Flight',
+                'Disruption Type',
+                'Severity'
+            ]
+            enriched_df = enriched_df.merge(
+                disruptions_subset,
+                on='Flight',
+                how='left'
+            )
+
+            # Merge with flights data (Passenger Count, Airports)
+            flights_subset = flights_df[[
+                'flight_id',
+                'passenger_count',
+                'departure_airport',
+                'arrival_airport'
+            ]].copy()
+            flights_subset.columns = [
+                'Flight',
+                'Passenger Count',
+                'Departure Airport',
+                'Arrival Airport'
+            ]
+            enriched_df = enriched_df.merge(
+                flights_subset,
+                on='Flight',
+                how='left'
+            )
+
+            recovery_context = (
+                RecoveryContextBuilder.build(
+                    enriched_df
+                )
+            )
+
+            st.session_state.recovery_context = (
+                recovery_context
+            )
+
+            st.session_state.enriched_df = enriched_df
+
+        except Exception as e:
+
+            st.error(
+                f"❌ Optimization Failed\n\n{str(e)}"
+            )
+
+            st.stop()
+
+    # ====================================================
+    # RENDER RESULTS OUTSIDE BUTTON
+    # ====================================================
+
+    if st.session_state.optimization_completed:
+
+        results_df = (
+            st.session_state.results_df
         )
 
-        # ====================================================
-        # METRICS
-        # ====================================================
+        total_cost = (
+            st.session_state.total_cost
+        )
+
+        flights_recovered = (
+            st.session_state.flights_recovered
+        )
 
         st.divider()
 
@@ -416,7 +592,7 @@ with tab3:
 
             st.metric(
                 "Flights Recovered",
-                len(assignments)
+                flights_recovered
             )
 
         with metric_col2:
@@ -426,23 +602,33 @@ with tab3:
                 f"${total_cost:,.0f}"
             )
 
-        # ====================================================
-        # RESULT TABLE
-        # ====================================================
-
         st.subheader(
             "Optimal Recovery Plan"
         )
 
+        # Display only essential columns
+        display_df = results_df[[
+            'Flight',
+            'Failed Aircraft',
+            'Recovery Aircraft',
+            'Recovery Cost'
+        ]]
+
         st.dataframe(
-            results_df,
+            display_df,
             use_container_width=True,
             hide_index=True
         )
 
-        # ====================================================
-        # DOWNLOAD
-        # ====================================================
+        col1, col2 = st.columns([8, 2])
+
+        with col2:
+
+            if st.button(
+                "🤖 Recovery Copilot"
+            ):
+
+                st.session_state.show_copilot = True
 
         st.download_button(
             label=
@@ -459,20 +645,115 @@ with tab3:
             mime=
             "text/csv"
         )
+        
+# ============================================================
+# RECOVERY COPILOT SIDEBAR
+# ============================================================
 
-        # ====================================================
-        # PHASE 3 PLACEHOLDER
-        # ====================================================
+if (
+    st.session_state.optimization_completed
+    and
+    st.session_state.show_copilot
+):
 
-        st.info(
+    with st.sidebar:
+
+        col1, col2 = st.columns([4, 1])
+
+        with col2:
+
+            if st.button("❌"):
+
+                st.session_state.show_copilot = False
+                st.rerun()
+
+        st.header(
+            "🤖 Recovery Copilot"
+        )
+
+        st.metric(
+            "Recovered Flights",
+            st.session_state.flights_recovered
+        )
+
+        st.metric(
+            "Total Cost",
+            f"${st.session_state.total_cost:,.0f}"
+        )
+
+        st.caption(
             """
-            🤖 GenAI Recovery Explanations
-            will appear here in Phase 3.
-
-            Example:
-            AC_022 selected because it was the
-            closest available aircraft with
-            sufficient capacity and the lowest
-            estimated recovery cost.
+            Ask questions about
+            the recovery plan.
             """
         )
+
+        for message in st.session_state.messages:
+
+            with st.chat_message(
+                message["role"]
+            ):
+
+                st.markdown(
+                    message["content"]
+                )
+
+        question = st.chat_input(
+            "Ask a question..."
+        )
+
+        if question:
+
+            st.session_state.messages.append({
+
+                "role": "user",
+
+                "content": question
+            })
+
+            try:
+
+                with st.spinner(
+                    "Thinking..."
+                ):
+
+                    # Validate recovery context
+                    if not st.session_state.recovery_context:
+
+                        raise ValueError(
+                            "Recovery context is empty. "
+                            "Please run optimization first."
+                        )
+
+                    answer = (
+
+                        RecoveryChatService()
+
+                        .ask(
+
+                            question=question,
+
+                            recovery_context=
+
+                            st.session_state
+                            .recovery_context
+                        )
+                    )
+
+            except Exception as e:
+
+                answer = (
+                    f"❌ Error: {str(e)}\n\n"
+                    f"Please check if the "
+                    f"GROQ_API_KEY is configured "
+                    f"in your environment."
+                )
+
+            st.session_state.messages.append({
+
+                "role": "assistant",
+
+                "content": answer
+            })
+
+            st.rerun()

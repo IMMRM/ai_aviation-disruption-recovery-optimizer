@@ -156,9 +156,9 @@ class RecoveryOptimizationModel:
 
                 self.variables[key]
 
-                * int(
-                    option.recovery_cost
-                )
+                * int(round(
+                    option.recovery_cost, 2
+                ))
             )
 
         self.model.Minimize(

@@ -9,4 +9,6 @@ psycopg2-binary
 ortools
 streamlit
 plotly
+groq
 -e .
+python>=3.10
