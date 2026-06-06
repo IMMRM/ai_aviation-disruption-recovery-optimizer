@@ -402,9 +402,8 @@ This project demonstrates:
 
 # Author
 
-Raj Ron
-
-Software Engineer | AI Engineering | Optimization | Agentic AI
+IMMRM
+ML Engineer | AI Engineering | Optimization | Agentic AI
 
 ---
 
