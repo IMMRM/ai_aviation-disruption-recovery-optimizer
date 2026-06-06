@@ -11,5 +11,5 @@ streamlit
 plotly
 groq
 gradio
--e .
+
 
