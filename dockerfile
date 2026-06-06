@@ -1,77 +1,104 @@
 # ============================================================
-# Base Image
+# Aviation Recovery Control Tower — Dockerfile
+# ============================================================
+# Multi-stage build using Google Distroless as final image.
+#
+# Stage 1 (builder): Alpine — installs deps and builds packages
+# Stage 2 (runtime): gcr.io/distroless/python3 — zero shell,
+#   no package manager, minimal CVE surface.
 # ============================================================
 
-FROM python:3.12-slim
+# ============================================================
+# STAGE 1 — BUILDER
+# ============================================================
+FROM python:3.12-alpine3.21 AS builder
 
-# ============================================================
-# Environment Variables
-# ============================================================
+# Build-time system deps
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libpq-dev \
+    ca-certificates
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# ============================================================
-# System Dependencies
-# ============================================================
-
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    gcc \
-    g++ \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# ============================================================
-# Working Directory
-# ============================================================
-
 WORKDIR /app
 
-# ============================================================
-# Install Python Dependencies
-# ============================================================
+# Install Python dependencies into an isolated prefix
+# so we can copy only that folder into the final image
+COPY requirements.txt pyproject.toml ./
+COPY src/ ./src/
+COPY models/ ./models/
+COPY config/ ./config/
 
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir --upgrade pip
-
-RUN pip install --no-cache-dir -r requirements.txt
-
-# ============================================================
-# Copy Project Files
-# ============================================================
-
-COPY . .
+RUN pip install --upgrade pip --no-cache-dir \
+    && grep -vE \'^\ *(python[>=<]|#|$)\' requirements.txt \
+       | grep -v \'^\ *-e\' \
+       > /tmp/requirements_clean.txt \
+    && pip install --no-cache-dir --prefix=/install -r /tmp/requirements_clean.txt \
+    && pip install --no-cache-dir --prefix=/install .
 
 # ============================================================
-# Streamlit Configuration
+# STAGE 2 — DISTROLESS RUNTIME
 # ============================================================
-
-RUN mkdir -p /root/.streamlit
-
-RUN echo "\
-[server]\n\
-headless = true\n\
-enableCORS = false\n\
-enableXsrfProtection = false\n\
-port = 8501\n\
-" > /root/.streamlit/config.toml
-
+# gcr.io/distroless/python3-debian12 is maintained by Google,
+# rebuilt nightly, and contains ONLY the Python interpreter +
+# its minimal glibc runtime. No shell, no apt, no curl —
+# drastically reduced CVE surface.
 # ============================================================
-# Expose Streamlit Port
-# ============================================================
+FROM gcr.io/distroless/python3-debian12:nonroot
 
-EXPOSE 8501
+LABEL maintainer="immrm"
+LABEL description="Aviation Recovery Control Tower — AI-driven disruption recovery platform"
+LABEL python.version="3.12"
 
-# ============================================================
-# Health Check
-# ============================================================
+# Copy installed packages from builder
+COPY --from=builder /install/lib /usr/local/lib
+COPY --from=builder /install/bin /usr/local/bin
 
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+# Copy application source
+WORKDIR /app
+COPY --from=builder /app/ ./
 
 # ============================================================
-# Start Application
+# RUNTIME ENVIRONMENT VARIABLES
+# ============================================================
+# Override at runtime via:
+#   docker run --env-file .env ...
+# or:
+#   docker run -e GROQ_API_KEY=sk-... -e DB_HOST=... ...
+# ============================================================
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH="/usr/local/lib/python3.12/site-packages:/app"
+
+ENV DB_USER=""
+ENV DB_PASSWORD=""
+ENV DB_HOST=""
+ENV DB_PORT="5432"
+ENV DB_NAME=""
+ENV GROQ_API_KEY=""
+
+ENV GRADIO_SERVER_NAME="0.0.0.0"
+ENV GRADIO_SERVER_PORT="7860"
+
+# ============================================================
+# NON-ROOT USER
+# ============================================================
+# The distroless :nonroot tag runs as uid=65532 (nonroot)
+# by default — no extra configuration needed.
 # ============================================================
 
-CMD ["streamlit", "run", "streamlit/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# ============================================================
+# EXPOSE PORT
+# ============================================================
+EXPOSE 7860
+
+# ============================================================
+# ENTRYPOINT
+# ============================================================
+# Distroless has no shell, so CMD must use exec form (JSON array).
+# python3 is the entrypoint provided by the distroless image.
+# ============================================================
+CMD ["app.py"]
