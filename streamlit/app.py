@@ -1,4 +1,5 @@
 import pandas as pd
+from src.optimization.build_assignment_matrix import build_assignment_matrix
 import streamlit as st
 import plotly.express as px
 from config.settings import DATABASE_URL
@@ -6,6 +7,7 @@ from config.settings import DATABASE_URL
 from sqlalchemy import create_engine
 
 from src.optimization.optimize_recovery import (
+    RecoveryOptimizer,
     optimize_recovery
 )
 
@@ -266,7 +268,7 @@ with tab2:
 
 # ============================================================
 # TAB 3
-# OPTIMIZER
+# RECOVERY OPTIMIZER
 # ============================================================
 
 with tab3:
@@ -287,13 +289,86 @@ with tab3:
         type="primary"
     ):
 
-        with st.spinner(
-            "Optimizing recovery plan..."
-        ):
+        progress_bar = st.progress(0)
 
-            assignments = (
-                optimize_recovery()
-            )
+        status_text = st.empty()
+
+        # ----------------------------------------------------
+        # STEP 1
+        # ----------------------------------------------------
+
+        status_text.text(
+            "Building assignment matrix..."
+        )
+
+        assignment_matrix = (
+            build_assignment_matrix()
+        )
+
+        progress_bar.progress(25)
+
+        # ----------------------------------------------------
+        # STEP 2
+        # ----------------------------------------------------
+
+        status_text.text(
+            "Initializing optimizer..."
+        )
+
+        optimizer = RecoveryOptimizer(
+            assignment_matrix
+        )
+
+        progress_bar.progress(50)
+
+        # ----------------------------------------------------
+        # STEP 3
+        # ----------------------------------------------------
+
+        status_text.text(
+            "Running OR-Tools solver..."
+        )
+
+        assignments = (
+            optimizer.solve()
+        )
+
+        progress_bar.progress(90)
+
+        # ----------------------------------------------------
+        # STEP 4
+        # ----------------------------------------------------
+
+        status_text.text(
+            "Preparing recovery plan..."
+        )
+
+        progress_bar.progress(100)
+
+        status_text.success(
+            "Optimization Complete"
+        )
+
+        # ====================================================
+        # DISRUPTION LOOKUP
+        # ====================================================
+
+        disruptions_df = (
+            load_disruptions()
+        )
+
+        disrupted_aircraft_lookup = {
+
+            row["flight_id"]:
+            row["aircraft_id"]
+
+            for _, row
+            in disruptions_df.iterrows()
+        }
+
+        # ====================================================
+        # BUILD RESULT TABLE
+        # ====================================================
 
         results = []
 
@@ -310,6 +385,12 @@ with tab3:
                 "Flight":
                     assignment.flight_id,
 
+                "Failed Aircraft":
+                    disrupted_aircraft_lookup.get(
+                        assignment.flight_id,
+                        "Unknown"
+                    ),
+
                 "Recovery Aircraft":
                     assignment.aircraft_id,
 
@@ -321,23 +402,33 @@ with tab3:
             results
         )
 
-        col1, col2 = st.columns(2)
+        # ====================================================
+        # METRICS
+        # ====================================================
 
-        with col1:
+        st.divider()
+
+        metric_col1, metric_col2 = (
+            st.columns(2)
+        )
+
+        with metric_col1:
 
             st.metric(
                 "Flights Recovered",
                 len(assignments)
             )
 
-        with col2:
+        with metric_col2:
 
             st.metric(
                 "Total Network Cost",
                 f"${total_cost:,.0f}"
             )
 
-        st.divider()
+        # ====================================================
+        # RESULT TABLE
+        # ====================================================
 
         st.subheader(
             "Optimal Recovery Plan"
@@ -345,14 +436,43 @@ with tab3:
 
         st.dataframe(
             results_df,
-            use_container_width=True
+            use_container_width=True,
+            hide_index=True
         )
 
-        st.divider()
+        # ====================================================
+        # DOWNLOAD
+        # ====================================================
+
+        st.download_button(
+            label=
+            "📥 Download Recovery Plan",
+
+            data=
+            results_df.to_csv(
+                index=False
+            ),
+
+            file_name=
+            "recovery_plan.csv",
+
+            mime=
+            "text/csv"
+        )
+
+        # ====================================================
+        # PHASE 3 PLACEHOLDER
+        # ====================================================
 
         st.info(
             """
-            GenAI Recovery Explanation
-            will be added in Phase 3.
+            🤖 GenAI Recovery Explanations
+            will appear here in Phase 3.
+
+            Example:
+            AC_022 selected because it was the
+            closest available aircraft with
+            sufficient capacity and the lowest
+            estimated recovery cost.
             """
         )
