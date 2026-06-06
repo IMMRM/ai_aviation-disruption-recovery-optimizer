@@ -2,10 +2,13 @@
 
 > An AI-driven aviation disruption recovery platform that simulates real-world private flight operations and intelligently optimizes aircraft rescheduling during operational disruptions — powered by Google OR-Tools, Groq LLM, and a Gradio web interface.
 
+[![🤗 Live Demo](https://img.shields.io/badge/🤗%20Live%20Demo-Hugging%20Face%20Spaces-orange?style=for-the-badge)](https://huggingface.co/spaces/Mehraj05038/ai_aviation-recovery-control-tower)
+
 ---
 
 ## Table of Contents
 
+- [Live Demo](#live-demo)
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
@@ -24,6 +27,16 @@
 - [Cost Model](#cost-model)
 - [Tech Stack](#tech-stack)
 - [License](#license)
+
+---
+
+## Live Demo
+
+The application is deployed and publicly accessible on Hugging Face Spaces:
+
+🔗 **[https://huggingface.co/spaces/Mehraj05038/ai_aviation-recovery-control-tower](https://huggingface.co/spaces/Mehraj05038/ai_aviation-recovery-control-tower)**
+
+No installation required — open the link, click **🔄 Load / Refresh** on any tab to pull live data, and navigate to **🚀 Recovery Optimizer** to run the optimization and chat with the AI Copilot.
 
 ---
 
